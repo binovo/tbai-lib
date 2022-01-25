@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<meta http-equiv="X-UA-Compatible" content="ie=edge" />
+        <style>
+label {
+    font-weight: bold;
+    display: block;
+    width: 100%;
+}
+textarea {
+    width: 100%;
+    height: 300px;
+}
+textarea#software {
+    height: 8em;
+}
+textarea#last {
+    height: 8em;
+}
+input {
+    width: 95%;
+}
+        </style>
+		<title>Webpack library usage</title>
+	</head>
+	<body>
+        <div>
+            <label>
+                P12 <input class="file" type="file" id="p12" name="p12" />
+            </label>
+            <label>
+                Password <input type="input" id="password" name="password" value="794613"/>
+            </label>
+            <label>
+                Alias <input type="input" id="alias" name="alias" value="SERIALNUMBER=99999990S, SN=FICTICIO, G=CIUDADANO, CN=CIUDADANO FICTICIO ACTIVO, DNQUALIFIER=-dni 99999990S, OU=Condiciones de uso en www.izenpe.com nola erabili jakiteko, OU=Herritar ziurtagiria - Certificado de ciudadano, OU=Ziurtagiri onartua - Certific"/>
+            </label>
+            <label>
+                IRS
+                <select name="irs" id="irs">
+                    <option value="0">ARABA</option>
+                    <option value="1">BIZKAIA</option>
+                    <option value="2">GIPUZKOA</option>
+                </select>
+            </label>
+            <label>
+		        Invoice JS <textarea id="js">
+{
+    issuer: {
+        irsId: "99999990S",
+        name: "Binovo IT"
+    },
+    simple: true,
+    id: {
+        number: "100",
+        issuedTime: new Date()
+    },
+    description: {
+        text: "Invoice description",
+        operationDate: new Date()
+    },
+    lines: [
+        {
+            description: "Line 01",
+            quantity: 1,
+            price: 250,
+            amount: 250,
+            amountWithVat: 302.5,
+            vat: 21,
+            discount: 0,
+            discountAmount: 0,
+        }
+    ],
+    vatKeys: ["01"],
+    vatLines: [
+        {
+            base: 250,
+            rate: 21,
+            amount: 52.5,
+        },
+    ],
+    total: 302.5,
+}
+                </textarea>
+            </label>
+            <label>
+                Software <textarea id="software">{
+    license: "TBAIGIPRE00000000003",
+    developerIrsId: "B20990602",
+    name: "Odoo Binovo",
+    version: "0.1"
+}</textarea>
+            </label>
+            <label>
+                Last invoice<textarea id="last"></textarea>
+            </label>
+            <label>
+                TBAI ID <input type="input" id="tbaiid" name="tbaiid" readonly />
+            </label>
+            <label>
+                TBAI URL <input type="input" id="tbaiurl" name="tbaiid" readonly />
+                <img id="tbaiqrcode" />
+            </label>
+            <label>
+                Signed XML <textarea id="signed" readonly ></textarea>
+            </label>
+        </div>
+        <div>
+            <button id="loadcert">Load p12</button> <button id="sign">Sign</button>
+        </div>
+        <pre id="messages"></pre>
+        <script type="text/javascript" src="qrcode.js"></script>
+        <script type="text/javascript" src="tbai.js"></script>
+        <script type="text/javascript">
+(function() {
+    function fixInvoice(invoice) {
+        invoice = invoice["invoice"] || invoice;
+        if (invoice.id && invoice.id.issuedTime) {
+            invoice.id.issuedTime = new Date(invoice.id.issuedTime);
+        }
+        if (invoice.description && invoice.description.operationDate) {
+            invoice.description.operationDate = new Date(invoice.description.operationDate);
+        }
+        return invoice;
+    }
+    function clearMessages() {
+        document.getElementById('messages').innerHTML = '';
+    }
+    function appendMessage(msg) {
+        document.getElementById('messages').innerHTML += msg;
+    }
+    function onLoadCert() {
+        clearMessages();
+        var signer;
+        var alias = document.getElementById('alias').value;
+        var password = document.getElementById('password').value;
+        var fileInputElement = document.getElementById('p12');
+        if (fileInputElement.files.length != 1) {
+            throw new Error('No certificate file selected');
+        }
+        signer =  window.tbai.TbaiSigner.fromFile(fileInputElement.files[0], alias, password);
+        signer.then(
+            appendMessage.bind(undefined, "Certificate loaded\n"),
+            appendMessage.bind(undefined, "Certificate load error\n")
+        );
+        return signer;
+    }
+    function onSign() {
+        var beginT = new Date(),
+            endT   = null;
+        document.getElementById("signed").value   = '';
+        document.getElementById("tbaiid").value   = '';
+        document.getElementById("tbaiurl").value  = '';
+        document.getElementById("tbaiqrcode").src = '';
+        onLoadCert().then(function(signer) {
+            var invoice, software, xmlString, lastId;
+            invoice  = fixInvoice(eval('(' + document.getElementById('js').value + ')'));
+            software = eval('(' + document.getElementById('software').value + ')');
+            lastId   = eval('(' + (document.getElementById('last').value || null) + ')');
+            if (lastId) {
+                lastId.issuedTime = new Date(lastId.issuedTime);
+            }
+            var t1, t2;
+            t1 = new Date();
+            xmlString = tbai.toXml(invoice, lastId, software, {});
+            t2 = new Date();
+            appendMessage("JSON to Xml time: " + (t2 - t1) + "ms");
+            return signer.sign(xmlString);
+        }).then(function(signedXml) {
+            document.getElementById("signed").value = signedXml;
+            return signedXml;
+        }).then(function(signedXml) {
+            var irs       = document.getElementById('irs').selectedIndex,
+                tbaiId    = tbai.getTbaiId(signedXml),
+                tbaiUrl   = tbai.getTbaiUrl(signedXml, irs),
+                chainInfo = tbai.getTbaiChainInfo(signedXml);
+            document.getElementById("last").value    = JSON.stringify(chainInfo);
+            document.getElementById("tbaiid").value  = tbaiId;
+            document.getElementById("tbaiurl").value = tbaiUrl;
+            return QRCode.toDataURL(tbaiUrl).then(function(url) {
+                document.getElementById('tbaiqrcode').src = url;
+            });
+        }).then(
+            function() {
+                endT = new Date();
+                appendMessage("XML signed in " + (endT - beginT) + "ms\n");
+            },
+            appendMessage.bind(undefined, "XML sign error\n")
+        );
+    }
+
+    document.getElementById('loadcert').addEventListener('click', onLoadCert);
+    document.getElementById('sign')    .addEventListener('click', onSign);
+})();
+        </script>
+	</body>
+</html>

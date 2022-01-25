@@ -1,0 +1,7 @@
+dist/*.js
+dist/*.ts
+dist/test
+dist/src
+.idea/
+node_modules
+**/*.bk
