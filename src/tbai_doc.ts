@@ -212,6 +212,11 @@ function addNotExemptedVatLineNode(xml: Document, vatLinesNode: Element, vatLine
     vatNode.appendChild(baseNode);
     vatNode.appendChild(rateNode);
     vatNode.appendChild(amountNode);
+    if (vatLine.isUsingSimplifiedRegime) {
+        const sNode = xml.createElement("OperacionEnRecargoDeEquivalenciaORegimenSimplificado");
+        sNode.textContent = "S";
+        vatNode.appendChild(sNode);
+    }
 }
 
 function addVatBreakdown(xml: Document, vatBreakdownNode: Element, vatLines: Array<VatLine>): void {

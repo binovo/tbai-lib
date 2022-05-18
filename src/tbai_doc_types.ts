@@ -38,6 +38,7 @@ export interface VatLine {
     base: number;
     rate: number;
     amount: number;
+    isUsingSimplifiedRegime?: boolean;
 }
 
 export interface InvoiceDescription {

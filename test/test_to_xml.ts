@@ -275,4 +275,92 @@ describe("We can create an invoice ", () => {
         expect(texts(xml, "Software>Version")).toEqual([software.version]);
         expect(texts(xml, "ClaveRegimenIvaOpTrascendencia")).toEqual(["01"]);
     });
+
+    it("invoice with vat lines in simplified regime and vatKeys 51 ", async () => {
+        const invoice: tbai.Invoice = {
+            simple: true,
+            issuer: {
+                irsId: "X0000000X",
+                name: "Binovo IT",
+            },
+            id: {
+                number: "1",
+                issuedTime: new Date("2020-02-01"),
+            },
+            description: {
+                text: "Invoice description",
+                operationDate: new Date("2020-02-01"),
+            },
+            lines: [
+                {
+                    description: "Neúmaticos con recargo",
+                    quantity: 1,
+                    price: 88,
+                    discount: 0,
+                    discountAmount: 0,
+                    vat: 21,
+                    amount: 88,
+                    amountWithVat: 106.48,
+                },
+            ],
+            total: 106.48,
+            vatLines: [
+                {
+                    base: 88,
+                    rate: 21,
+                    amount: 18.48,
+                    isUsingSimplifiedRegime: true,
+                },
+            ],
+            vatKeys: ["51"],
+        };
+        const previousId: tbai.PreviousInvoiceId = {
+            number: "0",
+            issuedTime: new Date(),
+            hash: "xxx",
+        };
+        const software: tbai.Software = {
+            license: "LICENSE CODE",
+            developerIrsId: "X0000000X",
+            name: "Acme TBAI",
+            version: "0.1",
+        };
+        const xml = tbai.toXmlDocument(invoice, previousId, software);
+        const xmlString = new XMLSerializer().serializeToString(xml);
+        const signedXml = await signer.sign(xmlString);
+        expect(await checkXml(signedXml)).toBe("ok");
+        expect(xml).toBeTruthy();
+        expect(texts(xml, "Emisor>NIF")).toEqual([invoice.issuer.irsId]);
+        expect(texts(xml, "Emisor>ApellidosNombreRazonSocial")).toEqual([invoice.issuer.name]);
+        expect(texts(xml, "ImporteTotalFactura")).toEqual(["106.48"]);
+        expect(
+            texts(
+                xml,
+                "TipoDesglose>DesgloseFactura>Sujeta>NoExenta>DetalleNoExenta>DesgloseIVA>DetalleIVA>BaseImponible"
+            )
+        ).toEqual(["88.00"]);
+        expect(
+            texts(
+                xml,
+                "TipoDesglose>DesgloseFactura>Sujeta>NoExenta>DetalleNoExenta>DesgloseIVA>DetalleIVA>TipoImpositivo"
+            )
+        ).toEqual(["21.00"]);
+        expect(
+            texts(
+                xml,
+                "TipoDesglose>DesgloseFactura>Sujeta>NoExenta>DetalleNoExenta>DesgloseIVA>DetalleIVA>CuotaImpuesto"
+            )
+        ).toEqual(["18.48"]);
+        expect(
+            texts(
+                xml,
+                "TipoDesglose>DesgloseFactura>Sujeta>NoExenta>DetalleNoExenta>DesgloseIVA>DetalleIVA>OperacionEnRecargoDeEquivalenciaORegimenSimplificado"
+            )
+        ).toEqual(["S"]);
+        expect(texts(xml, "LicenciaTBAI")).toEqual([software.license]);
+        expect(texts(xml, "EntidadDesarrolladora>NIF")).toEqual([software.developerIrsId]);
+        expect(texts(xml, "Software>Nombre")).toEqual([software.name]);
+        expect(texts(xml, "Software>Version")).toEqual([software.version]);
+        expect(texts(xml, "ClaveRegimenIvaOpTrascendencia")).toEqual(["51"]);
+    });
 });
