@@ -4,6 +4,7 @@
  */
 import "regenerator-runtime/runtime";
 import {
+    round2,
     FormatAndValidationFunction,
     round2ToString,
     round8ToString,
@@ -74,6 +75,7 @@ export interface Software {
 export interface ToXmlOptions {
     deviceId?: string;
     roundTaxGlobally?: boolean;
+    g5016?: boolean;
 }
 
 const TBAI_XML_BASE = `
@@ -251,6 +253,21 @@ function addSpanishVatBreakdown(
     addVatBreakdown(xml, spanishVatBreakdownNode, vatLines);
 }
 
+function recalculateLinesPrice(lines: Array<InvoiceLine>): void {
+    lines.map((l) => {
+        if (l.amountWithVat === undefined) {
+            throw new Error("Found invoice line without amountWithVat");
+        } else {
+            let linePrice = l.amountWithVat / (round2(l.quantity) * (1 + l.vat / 100));
+            if (l.discountAmount !== undefined) {
+                const lineDto = l.discountAmount / round2(l.quantity);
+                linePrice = linePrice + lineDto;
+            }
+            l.price = linePrice;
+        }
+    });
+}
+
 export function toXmlDocument(
     invoice: Invoice,
     previousId: PreviousInvoiceId | null,
@@ -311,6 +328,9 @@ export function toXmlDocument(
         throw new Error("Only up to 1000 invoice lines allowed");
     }
     if (invoice.lines.length > 0) {
+        if (options.g5016) {
+            recalculateLinesPrice(invoice.lines);
+        }
         const linesNode = xml.querySelector("DetallesFactura");
         if (!linesNode) {
             throw new Error("Missing DetallesFactura element");
